@@ -12,6 +12,10 @@ use crate::color::{RgbF64, RgbU8};
 mod color;
 mod utils;
 
+fn composite_uv(uv1: [f64; 2], uv2: [f64; 2], ratio: f64) -> [f64; 2] {
+    std::array::from_fn(|axis| (1.0 - ratio) * uv1[axis] + ratio * uv2[axis])
+}
+
 #[derive(Debug, Clone)]
 struct Screen {
     width: usize,
@@ -32,6 +36,7 @@ impl Screen {
         self.canvas.len() * 3 + 0x36
     }
 
+    #[allow(unused)]
     fn draw_chess_board(&mut self) {
         const LIGHT_RGB: [f64; 3] = [0.9473, 0.8713, 0.7991];
         const DARK_RGB: [f64; 3] = [0.1683, 0.0742, 0.0886];
@@ -78,40 +83,83 @@ impl Screen {
     //     ]
     // }
 
-    fn draw_triangle_based_on_horizontal_line(
+    // fn draw_triangle_based_on_horizontal_line(
+    //     &mut self,
+    //     base_x1: f64,
+    //     base_x2: f64,
+    //     base_y: f64,
+    //     top_x: f64,
+    //     top_y: f64,
+    // ) {
+    //     let mut y_range = [base_y, top_y].map(|y| self.to_canvas_y_with_clamp(y));
+    //     y_range.sort_unstable_by(|x, y| x.partial_cmp(y).unwrap());
+    //     let [min_y, max_y] = y_range;
+    //     for y in min_y..=max_y {
+    //         let t = (y as isize - self.to_canvas_y(base_y)).abs() as f64 / (max_y - min_y) as f64;
+    //         let left = self.to_canvas_x_with_clamp((1.0 - t) * base_x1 + t * top_x);
+    //         let right = self.to_canvas_x_with_clamp((1.0 - t) * base_x2 + t * top_x);
+    //         for x in left..=right {
+    //             self.canvas[(y as usize, x)] = RgbF64([0.9, 0.7, 0.5]).to_u8();
+    //         }
+    //     }
+    // }
+
+    fn draw_triangle_based_on_horizontal_line_with_uv(
         &mut self,
         base_x1: f64,
         base_x2: f64,
         base_y: f64,
         top_x: f64,
         top_y: f64,
+        base_uv_1: [f64; 2],
+        base_uv_2: [f64; 2],
+        top_uv: [f64; 2],
     ) {
         let mut y_range = [base_y, top_y].map(|y| self.to_canvas_y_with_clamp(y));
         y_range.sort_unstable_by(|x, y| x.partial_cmp(y).unwrap());
         let [min_y, max_y] = y_range;
+        if min_y == max_y {
+            return;
+        }
         for y in min_y..=max_y {
-            let t = (y as isize - self.to_canvas_y(base_y)).abs() as f64 / (max_y - min_y) as f64;
-            let left = self.to_canvas_x_with_clamp((1.0 - t) * base_x1 + t * top_x);
-            let right = self.to_canvas_x_with_clamp((1.0 - t) * base_x2 + t * top_x);
+            let ratio_v =
+                (y as isize - self.to_canvas_y(top_y)).abs() as f64 / (max_y - min_y + 1) as f64;
+            let left = self.to_canvas_x_with_clamp((1.0 - ratio_v) * top_x + ratio_v * base_x1);
+            let right = self.to_canvas_x_with_clamp((1.0 - ratio_v) * top_x + ratio_v * base_x2);
+            let left_uv = composite_uv(top_uv, base_uv_1, ratio_v);
+            let right_uv = composite_uv(top_uv, base_uv_2, ratio_v);
             for x in left..=right {
-                self.canvas[(y as usize, x)] = RgbF64([0.9, 0.7, 0.5]).to_u8();
+                let ratio_h = (x - left) as f64 / (right - left + 1) as f64;
+                let [u, v] = composite_uv(left_uv, right_uv, ratio_h);
+                self.canvas[(y, x)] = RgbF64([u, v, 0.5]).to_u8();
             }
         }
     }
 
-    fn draw_triangle(&mut self, a: [f64; 2], b: [f64; 2], c: [f64; 2]) {
-        let mut coords = [a, b, c];
-        coords.sort_unstable_by(|x, y| x[1].partial_cmp(&y[1]).unwrap());
+    fn draw_triangle(
+        &mut self,
+        a: [f64; 2],
+        b: [f64; 2],
+        c: [f64; 2],
+        a_uv: [f64; 2],
+        b_uv: [f64; 2],
+        c_uv: [f64; 2],
+    ) {
+        let mut coords = [(a, a_uv), (b, b_uv), (c, c_uv)];
+        coords.sort_unstable_by(|x, y| x.0[1].partial_cmp(&y.0[1]).unwrap());
 
-        if self.to_canvas_y(coords[0][1]) == self.to_canvas_y(coords[2][1]) {
+        if self.to_canvas_y(coords[0].0[1]) == self.to_canvas_y(coords[2].0[1]) {
             return;
         }
 
-        let [[ax, ay], [bx, by], [cx, cy]] = coords;
+        let [([ax, ay], a_uv), ([bx, by], b_uv), ([cx, cy], c_uv)] = coords;
         let t = (by - ay) / (cy - ay);
         let ex = (1.0 - t) * ax + t * cx;
-        for (top_x, top_y) in [(ax, ay), (cx, cy)] {
-            self.draw_triangle_based_on_horizontal_line(bx, ex, by, top_x, top_y);
+        let e_uv = composite_uv(a_uv, c_uv, t);
+        for ((top_x, top_y), top_uv) in [((ax, ay), a_uv), ((cx, cy), c_uv)] {
+            self.draw_triangle_based_on_horizontal_line_with_uv(
+                bx, ex, by, top_x, top_y, b_uv, e_uv, top_uv,
+            );
         }
     }
 
@@ -167,8 +215,15 @@ fn main() -> std::io::Result<()> {
     const HEIGHT: usize = 1024;
 
     let mut screen = Screen::new(WIDTH, HEIGHT);
-    screen.draw_chess_board();
-    screen.draw_triangle([-0.5, 0.5], [-0.8, 0.2], [0.3, -0.4]);
+    // screen.draw_chess_board();
+    screen.draw_triangle(
+        [-0.5, 0.5],
+        [-0.8, 0.2],
+        [0.3, -0.4],
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [0.0, 1.0],
+    );
     screen.save_to_file("output.bmp")?;
 
     Ok(())
