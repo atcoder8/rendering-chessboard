@@ -7,9 +7,14 @@ use std::{
 use itertools::iproduct;
 use ndarray::prelude::*;
 
-use crate::color::{RgbF64, RgbU8};
+use crate::{
+    color::{RgbF64, RgbU8},
+    pawn::create_pawn_mesh,
+};
 
 mod color;
+mod pawn;
+mod polygon;
 mod utils;
 
 fn composite_uv(uv1: [f64; 2], uv2: [f64; 2], ratio: f64) -> [f64; 2] {
@@ -163,6 +168,21 @@ impl Screen {
         }
     }
 
+    fn draw_pawn(&mut self) {
+        let pawn_meth = create_pawn_mesh();
+        for polygon in pawn_meth {
+            let [v1, v2, v3] = polygon.vertices.map(|vertex| vertex.coord);
+            self.draw_triangle(
+                [v1[0], v1[1]],
+                [v2[0], v2[1]],
+                [v3[0], v3[1]],
+                [0.0, 0.0],
+                [0.0, 0.0],
+                [0.0, 0.0],
+            );
+        }
+    }
+
     fn canvas_to_bytes(&self) -> impl IntoIterator<Item = u8> {
         self.canvas
             .iter()
@@ -216,14 +236,15 @@ fn main() -> std::io::Result<()> {
 
     let mut screen = Screen::new(WIDTH, HEIGHT);
     // screen.draw_chess_board();
-    screen.draw_triangle(
-        [-0.5, 0.5],
-        [-0.8, 0.2],
-        [0.3, -0.4],
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [0.0, 1.0],
-    );
+    // screen.draw_triangle(
+    //     [-0.5, 0.5],
+    //     [-0.8, 0.2],
+    //     [0.3, -0.4],
+    //     [0.0, 0.0],
+    //     [1.0, 0.0],
+    //     [0.0, 1.0],
+    // );
+    screen.draw_pawn();
     screen.save_to_file("output.bmp")?;
 
     Ok(())
