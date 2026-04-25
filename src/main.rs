@@ -123,13 +123,13 @@ impl Screen {
         }
         for y in min_y..=max_y {
             let ratio_v =
-                (y as isize - self.to_canvas_y(top_y)).abs() as f64 / (max_y - min_y + 1) as f64;
+                (y as isize - self.to_canvas_y(top_y)).abs() as f64 / (max_y - min_y) as f64;
             let left = self.to_canvas_x_with_clamp((1.0 - ratio_v) * top_x + ratio_v * base_x1);
             let right = self.to_canvas_x_with_clamp((1.0 - ratio_v) * top_x + ratio_v * base_x2);
             let left_uv = composite_uv(top_uv, base_uv_1, ratio_v);
             let right_uv = composite_uv(top_uv, base_uv_2, ratio_v);
             for x in left..=right {
-                let ratio_h = (x - left) as f64 / (right - left + 1) as f64;
+                let ratio_h = (x - left) as f64 / (right - left) as f64;
                 let [u, v] = composite_uv(left_uv, right_uv, ratio_h);
                 self.canvas[(y, x)] = RgbF64([u, v, 0.5]).to_u8();
             }
