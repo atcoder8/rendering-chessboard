@@ -10,11 +10,15 @@ pub fn cross_product(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx]
 }
 
+/// ベクトルのノルムを計算します。
+pub fn vector_norm<I: IntoIterator<Item = f64>>(v: I) -> f64 {
+    v.into_iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
+}
+
 /// 与えられたベクトルを正規化して返します。
 /// 零ベクトルが与えられた場合は零ベクトルを返します。
 pub fn vector_normalized(v: [f64; 3]) -> [f64; 3] {
-    let [x, y, z] = v;
-    let norm = (x.powi(2) + y.powi(2) + z.powi(2)).powf(0.5);
+    let norm = vector_norm(v);
     if norm > 0.0 {
         v.map(|elem| elem / norm)
     } else {
@@ -37,6 +41,7 @@ pub fn vector_scale<const N: usize>(v: [f64; N], scaler: f64) -> [f64; N] {
     std::array::from_fn(|i| v[i] * scaler)
 }
 
+/// ベクトルの平均を計算します。
 pub fn vector_average<I, const N: usize>(vectors: I) -> [f64; N]
 where
     I: IntoIterator<Item = [f64; N]>,
