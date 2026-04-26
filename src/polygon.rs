@@ -1,4 +1,4 @@
-use crate::utils::vector_composited;
+use crate::utils::{revolve_point, vector_composited};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VertexInfo {
@@ -13,9 +13,9 @@ impl VertexInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Vertex {
-    pub coord: [f64; 4],
+    pub coord: [f64; 3],
     pub info: VertexInfo,
 }
 
@@ -35,11 +35,9 @@ impl Vertex {
         self.coord[2]
     }
 
-    pub fn from_2d_coord(coord: [f64; 2], azimuth: f64) -> Self {
-        let [x, y] = coord;
-        let (sin, cos) = azimuth.sin_cos();
+    pub fn from_revolving(point: [f64; 2], azimuth: f64) -> Self {
         Vertex {
-            coord: [x * cos, y, x * sin, 1.0],
+            coord: revolve_point(point, azimuth),
             info: VertexInfo::default(),
         }
     }
@@ -52,7 +50,7 @@ impl Vertex {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Polygon {
     pub vertices: [Vertex; 3],
 }

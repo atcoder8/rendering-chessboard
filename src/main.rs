@@ -10,8 +10,7 @@ use ndarray::prelude::*;
 use crate::{
     color::{RgbF64, RgbU8},
     pawn::create_pawn_mesh,
-    polygon::{Polygon, Vertex, VertexInfo},
-    utils::vector_resize,
+    polygon::{Polygon, Vertex},
 };
 
 mod color;
@@ -188,18 +187,18 @@ fn main() -> std::io::Result<()> {
     let mut screen = Screen::new(WIDTH, HEIGHT);
 
     // チェス盤を表示
-    screen.draw_chess_board();
+    // screen.draw_chess_board();
 
-    // 1つの三角形に対応するポリゴンを描画
-    let coords = [[-0.5, 0.5, 0.0], [-0.8, 0.2, 0.0], [0.3, -0.4, 0.0]];
-    let normals = [[0.0, 0.0, 0.5], [1.0, 0.0, 0.5], [0.0, 1.0, 0.5]];
-    let vertices = std::array::from_fn(|axis| Vertex {
-        coord: vector_resize(coords[axis], 1.0),
-        info: VertexInfo {
-            normal: normals[axis],
-        },
-    });
-    screen.draw_polygon(Polygon { vertices });
+    // // 1つの三角形に対応するポリゴンを描画
+    // let coords = [[-0.5, 0.5, 0.0], [-0.8, 0.2, 0.0], [0.3, -0.4, 0.0]];
+    // let normals = [[0.0, 0.0, 0.5], [1.0, 0.0, 0.5], [0.0, 1.0, 0.5]];
+    // let vertices = std::array::from_fn(|axis| Vertex {
+    //     coord: vector_resize(coords[axis], 1.0),
+    //     info: VertexInfo {
+    //         normal: normals[axis],
+    //     },
+    // });
+    // screen.draw_polygon(Polygon { vertices });
 
     // ポーンを描画
     screen.draw_pawn();

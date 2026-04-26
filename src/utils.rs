@@ -22,24 +22,53 @@ pub fn vector_normalized(v: [f64; 3]) -> [f64; 3] {
     }
 }
 
+/// ベクトルの和を計算します。
+pub fn vector_add<const N: usize>(lhs: [f64; N], rhs: [f64; N]) -> [f64; N] {
+    std::array::from_fn(|i| lhs[i] + rhs[i])
+}
+
 /// ベクトルの差を計算します。
 pub fn vector_sub<const N: usize>(lhs: [f64; N], rhs: [f64; N]) -> [f64; N] {
     std::array::from_fn(|i| lhs[i] - rhs[i])
 }
 
-/// ベクトルのprefixを返します。
-pub fn vector_truncated<const DIM: usize, const IM: usize>(v: [f64; DIM]) -> [f64; IM] {
-    std::array::from_fn(|axis| v[axis])
+/// ベクトルを定数倍します。
+pub fn vector_scale<const N: usize>(v: [f64; N], scaler: f64) -> [f64; N] {
+    std::array::from_fn(|i| v[i] * scaler)
 }
 
-/// ベクトルの長さを変更します。
-pub fn vector_resize<const DIM: usize, const IM: usize>(v: [f64; DIM], value: f64) -> [f64; IM] {
-    let mut resized = [value; IM];
-    resized[..DIM.min(IM)].copy_from_slice(&v);
-    resized
+pub fn vector_average<I, const N: usize>(vectors: I) -> [f64; N]
+where
+    I: IntoIterator<Item = [f64; N]>,
+{
+    let mut cnt = 0_usize;
+    let sum = vectors.into_iter().fold([0.0; N], |acc, v| {
+        cnt += 1;
+        vector_add(acc, v)
+    });
+    vector_scale(sum, 1.0 / cnt as f64)
 }
+
+/// ベクトルのprefixを返します。
+// pub fn vector_truncated<const DIM: usize, const IM: usize>(v: [f64; DIM]) -> [f64; IM] {
+//     std::array::from_fn(|axis| v[axis])
+// }
+
+// /// ベクトルの長さを変更します。
+// pub fn vector_resize<const DIM: usize, const IM: usize>(v: [f64; DIM], value: f64) -> [f64; IM] {
+//     let mut resized = [value; IM];
+//     resized[..DIM.min(IM)].copy_from_slice(&v);
+//     resized
+// }
 
 /// ベクトルを重み付きで合成します。
 pub fn vector_composited<const DIM: usize>(a: [f64; DIM], b: [f64; DIM], ratio: f64) -> [f64; DIM] {
     std::array::from_fn(|axis| (1.0 - ratio) * a[axis] + ratio * b[axis])
+}
+
+/// 平面上の1点を空間上で回転させます。
+pub fn revolve_point(point: [f64; 2], azimuth: f64) -> [f64; 3] {
+    let [x, y] = point;
+    let (sin, cos) = azimuth.sin_cos();
+    [x * cos, y, x * sin]
 }
