@@ -205,7 +205,7 @@ fn main() -> std::io::Result<()> {
     screen.draw_pawn();
 
     // 画像ファイルに出力
-    screen.save_to_file("output.bmp")?;
+    screen.save_to_file("images/output.bmp")?;
 
     Ok(())
 }
