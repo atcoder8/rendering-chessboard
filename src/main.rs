@@ -95,6 +95,10 @@ impl Screen {
             let left_vertex = base_vertex_1.composited(top_vertex, y_ratio);
             let right_vertex = base_vertex_2.composited(top_vertex, y_ratio);
 
+            if self.to_canvas_x(right_vertex.x()) == self.to_canvas_x(left_vertex.x()) {
+                continue;
+            }
+
             let mut x_range =
                 [left_vertex.x(), right_vertex.x()].map(|x| self.to_canvas_x_with_clamp(x));
             x_range.sort_unstable();
