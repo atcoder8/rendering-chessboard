@@ -1,6 +1,9 @@
 use itertools::Itertools;
 
-use crate::polygon::{Polygon, Vertex};
+use crate::{
+    polygon::{Polygon, Vertex, VertexInfo},
+    utils::{cross_product, vector_normalized, vector_sub, vector_truncated},
+};
 
 /// ポーンの輪郭 (右半分)
 pub const PAWN_CONTOUR: [[f64; 2]; 28] = [
@@ -40,12 +43,25 @@ pub fn create_pawn_mesh() -> impl Iterator<Item = Polygon> {
     // 四角形を構成する2つのポリゴンを生成するクロージャ
     let create_polygons_for_quadrangle = |vertices: [Vertex; 4]| {
         let [v1, v2, v3, v4] = vertices;
+        let v21 = vector_truncated(vector_sub(v1.coord, v2.coord));
+        let v23 = vector_truncated(vector_sub(v3.coord, v2.coord));
+        let v24 = vector_truncated(vector_sub(v4.coord, v2.coord));
+        let normal1 = vector_normalized(cross_product(v21, v23));
+        let normal2 = vector_normalized(cross_product(v23, v24));
+        let vertices1 = [v1, v2, v3].map(|v| Vertex {
+            info: { VertexInfo { normal: normal1 } },
+            ..v
+        });
+        let vertices2 = [v2, v3, v4].map(|v| Vertex {
+            info: { VertexInfo { normal: normal2 } },
+            ..v
+        });
         [
             Polygon {
-                vertices: [v1, v2, v3],
+                vertices: vertices1,
             },
             Polygon {
-                vertices: [v1, v3, v4],
+                vertices: vertices2,
             },
         ]
     };
@@ -67,7 +83,7 @@ pub fn create_pawn_mesh() -> impl Iterator<Item = Polygon> {
                         Vertex::from_2d_coord(point2, azimuth1),
                         Vertex::from_2d_coord(point2, azimuth2),
                     ];
-                    create_polygons_for_quadrangle(vertices)
+                    create_polygons_for_quadrangle(vertices).into_iter()
                 })
         })
 }

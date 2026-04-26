@@ -10,16 +10,14 @@ use ndarray::prelude::*;
 use crate::{
     color::{RgbF64, RgbU8},
     pawn::create_pawn_mesh,
+    polygon::{Polygon, Vertex, VertexInfo},
+    utils::vector_resize,
 };
 
 mod color;
 mod pawn;
 mod polygon;
 mod utils;
-
-fn composite_uv(uv1: [f64; 2], uv2: [f64; 2], ratio: f64) -> [f64; 2] {
-    std::array::from_fn(|axis| (1.0 - ratio) * uv1[axis] + ratio * uv2[axis])
-}
 
 #[derive(Debug, Clone)]
 struct Screen {
@@ -67,11 +65,6 @@ impl Screen {
         ((y + 1.0) * 0.5 * self.height as f64) as isize
     }
 
-    // fn to_canvas_coord(&self, coord: [f64; 2]) -> [isize; 2] {
-    //     let [x, y] = coord;
-    //     [self.to_canvas_x(x), self.to_canvas_y(y)]
-    // }
-
     fn to_canvas_x_with_clamp(&self, x: f64) -> usize {
         self.to_canvas_x(x).clamp(0, self.width as isize - 1) as usize
     }
@@ -80,106 +73,64 @@ impl Screen {
         self.to_canvas_y(y).clamp(0, self.height as isize - 1) as usize
     }
 
-    // fn to_canvas_coord_with_clamp(&self, coord: [f64; 2]) -> [usize; 2] {
-    //     let [x, y] = coord;
-    //     [
-    //         self.to_canvas_x_with_clamp(x),
-    //         self.to_canvas_y_with_clamp(y),
-    //     ]
-    // }
-
-    // fn draw_triangle_based_on_horizontal_line(
-    //     &mut self,
-    //     base_x1: f64,
-    //     base_x2: f64,
-    //     base_y: f64,
-    //     top_x: f64,
-    //     top_y: f64,
-    // ) {
-    //     let mut y_range = [base_y, top_y].map(|y| self.to_canvas_y_with_clamp(y));
-    //     y_range.sort_unstable_by(|x, y| x.partial_cmp(y).unwrap());
-    //     let [min_y, max_y] = y_range;
-    //     for y in min_y..=max_y {
-    //         let t = (y as isize - self.to_canvas_y(base_y)).abs() as f64 / (max_y - min_y) as f64;
-    //         let left = self.to_canvas_x_with_clamp((1.0 - t) * base_x1 + t * top_x);
-    //         let right = self.to_canvas_x_with_clamp((1.0 - t) * base_x2 + t * top_x);
-    //         for x in left..=right {
-    //             self.canvas[(y as usize, x)] = RgbF64([0.9, 0.7, 0.5]).to_u8();
-    //         }
-    //     }
-    // }
-
-    fn draw_triangle_based_on_horizontal_line_with_uv(
+    fn draw_triangle_based_on_horizontal(
         &mut self,
-        base_x1: f64,
-        base_x2: f64,
-        base_y: f64,
-        top_x: f64,
-        top_y: f64,
-        base_uv_1: [f64; 2],
-        base_uv_2: [f64; 2],
-        top_uv: [f64; 2],
+        base_vertex_1: Vertex,
+        base_vertex_2: Vertex,
+        top_vertex: Vertex,
     ) {
-        let mut y_range = [base_y, top_y].map(|y| self.to_canvas_y_with_clamp(y));
-        y_range.sort_unstable_by(|x, y| x.partial_cmp(y).unwrap());
+        assert!(
+            (base_vertex_1.y() - base_vertex_2.y()).abs() < 1e-9,
+            "三角形の底辺はx軸と平行である必要があります。"
+        );
+
+        let mut y_range =
+            [base_vertex_1.y(), top_vertex.y()].map(|y| self.to_canvas_y_with_clamp(y));
+        y_range.sort_unstable();
         let [min_y, max_y] = y_range;
-        if min_y == max_y {
-            return;
-        }
-        for y in min_y..=max_y {
-            let ratio_v =
-                (y as isize - self.to_canvas_y(top_y)).abs() as f64 / (max_y - min_y) as f64;
-            let left = self.to_canvas_x_with_clamp((1.0 - ratio_v) * top_x + ratio_v * base_x1);
-            let right = self.to_canvas_x_with_clamp((1.0 - ratio_v) * top_x + ratio_v * base_x2);
-            let left_uv = composite_uv(top_uv, base_uv_1, ratio_v);
-            let right_uv = composite_uv(top_uv, base_uv_2, ratio_v);
-            for x in left..=right {
-                let ratio_h = (x - left) as f64 / (right - left) as f64;
-                let [u, v] = composite_uv(left_uv, right_uv, ratio_h);
-                self.canvas[(y, x)] = RgbF64([u, v, 0.5]).to_u8();
+        for canvas_y in min_y..=max_y {
+            // 底辺からの高さの割合
+            let y_ratio = (canvas_y as isize - self.to_canvas_y(base_vertex_1.y())) as f64
+                / (self.to_canvas_y(top_vertex.y()) - self.to_canvas_y(base_vertex_1.y())) as f64;
+            // 現在の高さの左右対応する点
+            let left_vertex = base_vertex_1.composited(top_vertex, y_ratio);
+            let right_vertex = base_vertex_2.composited(top_vertex, y_ratio);
+
+            let mut x_range =
+                [left_vertex.x(), right_vertex.x()].map(|x| self.to_canvas_x_with_clamp(x));
+            x_range.sort_unstable();
+            let [min_x, max_x] = x_range;
+            for canvas_x in min_x..=max_x {
+                // 片側の頂点からの幅の割合
+                let x_ratio = (canvas_x as isize - self.to_canvas_x(left_vertex.x())) as f64
+                    / (self.to_canvas_x(right_vertex.x()) - self.to_canvas_x(left_vertex.x()))
+                        as f64;
+                // スクリーン座標に対応する点
+                let vertex = left_vertex.composited(right_vertex, x_ratio);
+                // キャンバス上に点を配置
+                self.canvas[(canvas_y, canvas_x)] = RgbF64(vertex.info.normal).to_u8();
             }
         }
     }
 
-    fn draw_triangle(
-        &mut self,
-        a: [f64; 2],
-        b: [f64; 2],
-        c: [f64; 2],
-        a_uv: [f64; 2],
-        b_uv: [f64; 2],
-        c_uv: [f64; 2],
-    ) {
-        let mut coords = [(a, a_uv), (b, b_uv), (c, c_uv)];
-        coords.sort_unstable_by(|x, y| x.0[1].partial_cmp(&y.0[1]).unwrap());
-
-        if self.to_canvas_y(coords[0].0[1]) == self.to_canvas_y(coords[2].0[1]) {
+    fn draw_polygon(&mut self, polygon: Polygon) {
+        let Polygon { mut vertices } = polygon;
+        vertices.sort_unstable_by(|x, y| x.y().partial_cmp(&y.y()).unwrap());
+        let [va, vb, vc] = vertices;
+        if va.y() == vc.y() {
             return;
         }
-
-        let [([ax, ay], a_uv), ([bx, by], b_uv), ([cx, cy], c_uv)] = coords;
-        let t = (by - ay) / (cy - ay);
-        let ex = (1.0 - t) * ax + t * cx;
-        let e_uv = composite_uv(a_uv, c_uv, t);
-        for ((top_x, top_y), top_uv) in [((ax, ay), a_uv), ((cx, cy), c_uv)] {
-            self.draw_triangle_based_on_horizontal_line_with_uv(
-                bx, ex, by, top_x, top_y, b_uv, e_uv, top_uv,
-            );
+        let y_ratio = (vb.y() - va.y()) / (vc.y() - va.y());
+        let ve = va.composited(vc, y_ratio);
+        for top_vertex in [va, vc] {
+            self.draw_triangle_based_on_horizontal(vb, ve, top_vertex);
         }
     }
 
     fn draw_pawn(&mut self) {
         let pawn_meth = create_pawn_mesh();
         for polygon in pawn_meth {
-            let [v1, v2, v3] = polygon.vertices.map(|vertex| vertex.coord);
-            self.draw_triangle(
-                [v1[0], v1[1]],
-                [v2[0], v2[1]],
-                [v3[0], v3[1]],
-                [0.0, 0.0],
-                [0.0, 0.0],
-                [0.0, 0.0],
-            );
+            self.draw_polygon(polygon);
         }
     }
 
@@ -235,16 +186,25 @@ fn main() -> std::io::Result<()> {
     const HEIGHT: usize = 1024;
 
     let mut screen = Screen::new(WIDTH, HEIGHT);
-    // screen.draw_chess_board();
-    // screen.draw_triangle(
-    //     [-0.5, 0.5],
-    //     [-0.8, 0.2],
-    //     [0.3, -0.4],
-    //     [0.0, 0.0],
-    //     [1.0, 0.0],
-    //     [0.0, 1.0],
-    // );
+
+    // チェス盤を表示
+    screen.draw_chess_board();
+
+    // 1つの三角形に対応するポリゴンを描画
+    let coords = [[-0.5, 0.5, 0.0], [-0.8, 0.2, 0.0], [0.3, -0.4, 0.0]];
+    let normals = [[0.0, 0.0, 0.5], [1.0, 0.0, 0.5], [0.0, 1.0, 0.5]];
+    let vertices = std::array::from_fn(|axis| Vertex {
+        coord: vector_resize(coords[axis], 1.0),
+        info: VertexInfo {
+            normal: normals[axis],
+        },
+    });
+    screen.draw_polygon(Polygon { vertices });
+
+    // ポーンを描画
     screen.draw_pawn();
+
+    // 画像ファイルに出力
     screen.save_to_file("output.bmp")?;
 
     Ok(())
