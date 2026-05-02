@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod color;
+mod linear_algebra;
 mod pawn;
 mod polygon;
 mod utils;

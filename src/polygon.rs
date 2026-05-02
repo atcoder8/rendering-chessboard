@@ -1,4 +1,4 @@
-use crate::utils::{revolve_point, vector_composited};
+use crate::linear_algebra::{revolve_point, vector_composited};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VertexInfo {

@@ -2,8 +2,8 @@ use itertools::{Itertools, iproduct};
 use ndarray::prelude::*;
 
 use crate::{
+    linear_algebra::{cross_product, revolve_point, vector_average, vector_normalized, vector_sub},
     polygon::{Polygon, Vertex},
-    utils::{cross_product, revolve_point, vector_average, vector_normalized, vector_sub},
 };
 
 /// ポーンの輪郭 (右半分)
