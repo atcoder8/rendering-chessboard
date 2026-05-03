@@ -82,3 +82,56 @@ pub fn revolve_point(point: [f64; 2], azimuth: f64) -> [f64; 3] {
     let (sin, cos) = azimuth.sin_cos();
     [x * cos, y, x * sin]
 }
+
+/// 行列とベクトルの積を計算します。
+pub fn apply_matrix<const M: usize, const N: usize>(
+    matrix: Matrix<M, N>,
+    vector: [f64; N],
+) -> [f64; M] {
+    matrix.map(|row| inner_product(row, vector))
+}
+
+/// 単位行列を生成します。
+pub fn identity_matrix<const N: usize>() -> SquareMatrix<N> {
+    let mut matrix = [[0.0; N]; N];
+    for i in 0..N {
+        matrix[i][i] = 1.0;
+    }
+    matrix
+}
+
+/// 行列の積を計算します。
+pub fn matrix_product<const L: usize, const M: usize, const N: usize>(
+    a: Matrix<L, M>,
+    b: Matrix<M, N>,
+) -> Matrix<L, N> {
+    std::array::from_fn(|i| std::array::from_fn(|j| (0..M).map(|k| a[i][k] * b[k][j]).sum()))
+}
+
+/// 累積的に正方行列の積を計算します。
+pub fn product_square_matrix_iter<I, const N: usize>(matrix_iter: I) -> SquareMatrix<N>
+where
+    I: IntoIterator<Item = SquareMatrix<N>>,
+{
+    matrix_iter
+        .into_iter()
+        .fold(identity_matrix(), |acc, x| matrix_product(acc, x))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn matrix_all_close<const M: usize, const N: usize>(a: Matrix<M, N>, b: Matrix<M, N>) -> bool {
+        (0..M).all(|i| (0..N).all(|j| (a[i][j] - b[i][j]).abs() <= 1e-9))
+    }
+
+    #[test]
+    fn test_matrix_product() {
+        let a = [[3., 1., 4.], [1., 5., 9.]];
+        let b = [[2., 6.], [5., 3.], [5., 8.]];
+        let actual = matrix_product(a, b);
+        let expected = [[31., 53.], [72., 93.]];
+        assert!(matrix_all_close(actual, expected,));
+    }
+}
